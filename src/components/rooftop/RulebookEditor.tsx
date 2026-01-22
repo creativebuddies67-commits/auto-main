@@ -41,6 +41,9 @@ export function RulebookEditor({ rooftopId }: RulebookEditorProps) {
       return data as Rulebook | null;
     },
   });
+  if (!user?.id) {
+  throw new Error('User not authenticated');
+}
 
   const { data: edits } = useQuery({
     queryKey: ['rulebook-edits', rulebook?.id],
@@ -82,9 +85,10 @@ export function RulebookEditor({ rooftopId }: RulebookEditorProps) {
 
   useEffect(() => {
     if (rulebook?.content) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setContent(rulebook.content);
     }
-  }, [rulebook]);
+  }, [rulebook]); 
 
   const generateRulebook = () => {
     let generated = RULEBOOK_TEMPLATE;
@@ -163,12 +167,14 @@ export function RulebookEditor({ rooftopId }: RulebookEditorProps) {
     mutationFn: async () => {
       if (!rulebook) throw new Error('No rulebook to save');
 
-      const { error: editError } = await supabase.from('rulebook_edits').insert({
-        rulebook_id: rulebook.id,
-        user_id: user?.id,
-        content_snapshot: content,
-        edit_note: editNote || null,
-      });
+      const { error: editError } = await supabase
+        .from("rulebook_edits")
+        .insert({
+          rulebook_id: rulebook.id,
+          user_id: user.id,
+          content_snapshot: content,
+          edit_note: editNote || null,
+        });
       if (editError) throw editError;
 
       const { error } = await supabase
@@ -214,42 +220,65 @@ export function RulebookEditor({ rooftopId }: RulebookEditorProps) {
   });
 
   const pushMutation = useMutation({
-    mutationFn: async () => {
-      const agentId = `retell_${Date.now()}`;
+  mutationFn: async () => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
 
-      const { error: agentError } = await supabase.from('retell_agents').upsert(
+    if (!rulebook?.id) {
+      throw new Error('Rulebook not found');
+    }
+
+    if (!rooftopId) {
+      throw new Error('Rooftop ID missing');
+    }
+
+    const agentId = `retell_${Date.now()}`;
+
+    const { error: agentError } = await supabase
+      .from('retell_agents')
+      .upsert(
         {
           rooftop_id: rooftopId,
           agent_id: agentId,
           push_status: 'success',
           pushed_at: new Date().toISOString(),
-          pushed_by: user?.id,
+          pushed_by: user.id, // ✅ string
         },
         { onConflict: 'rooftop_id' }
       );
-      if (agentError) throw agentError;
 
-      const { error } = await supabase
-        .from('rulebooks')
-        .update({ status: 'pushed' })
-        .eq('id', rulebook?.id);
-      if (error) throw error;
+    if (agentError) throw agentError;
 
-      return agentId;
-    },
-    onSuccess: (agentId) => {
-      queryClient.invalidateQueries({ queryKey: ['rulebook', rooftopId] });
-      queryClient.invalidateQueries({ queryKey: ['rooftop', rooftopId] });
-      setShowPush(false);
-      toast({
-        title: 'Pushed to Retell',
-        description: `Agent created with ID: ${agentId}`,
-      });
-    },
-    onError: (error) => {
-      toast({ title: 'Push Failed', description: error.message, variant: 'default' });
-    },
-  });
+    const { error } = await supabase
+      .from('rulebooks')
+      .update({ status: 'pushed' })
+      .eq('id', rulebook.id); // ✅ string
+
+    if (error) throw error;
+
+    return agentId;
+  },
+
+  onSuccess: (agentId) => {
+    queryClient.invalidateQueries({ queryKey: ['rulebook', rooftopId] });
+    queryClient.invalidateQueries({ queryKey: ['rooftop', rooftopId] });
+    setShowPush(false);
+    toast({
+      title: 'Pushed to Retell',
+      description: `Agent created with ID: ${agentId}`,
+    });
+  },
+
+  onError: (error) => {
+    toast({
+      title: 'Push Failed',
+      description: error.message,
+      variant: 'default',
+    });
+  },
+});
+
 
   if (loadingRulebook) {
     return <div className="animate-pulse h-96 bg-muted rounded-lg" />;
