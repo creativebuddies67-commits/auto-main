@@ -1,6 +1,8 @@
-import Dashboard from "@/pages/Dashboard";
+'use client';
+export const dynamic = 'force-dynamic';
+
+import Dashboard from '@/pages/Dashboard';
+
 export default function DashboardPage() {
-  return (
-    <Dashboard />
-  )
+  return <Dashboard />;
 }

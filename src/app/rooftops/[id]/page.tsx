@@ -1,4 +1,7 @@
-import RooftopDetail from "@/pages/RooftopDetail";
-export default function RoofTopDetailsPage() {
-  return <RooftopDetail />;
+'use client';                    
+export const dynamic = 'force-dynamic';
+
+import Dashboard from '@/pages/Dashboard'; 
+export default function DashboardPage() {
+  return <Dashboard />;
 }
